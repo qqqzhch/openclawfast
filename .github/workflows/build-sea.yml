@@ -82,14 +82,14 @@ jobs:
         run: |
           cd dist-sea
           mv ${{ steps.executable.outputs.name }} openclaw.exe
-          7z a -tzip openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.zip openclaw.exe
+          7z a -tzip openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.zip openclaw.exe package.json
 
       - name: Create archive (Unix)
         if: matrix.platform != 'win32'
         run: |
           cd dist-sea
           mv ${{ steps.executable.outputs.name }} openclaw
-          tar -czf openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz openclaw
+          tar -czf openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz openclaw package.json
 
       - name: Upload artifact (Windows)
         if: matrix.platform == 'win32'

@@ -153,7 +153,8 @@ async function bundleForSEA() {
   const seaEntryPath = join(config.projectRoot, "dist", "entry.js");
   const seaOutputPath = join(config.projectRoot, "dist", "sea-bundle.cjs");
   
-  // Create a shim file for import.meta in CJS
+  const pkg = getPackageInfo();
+  
   const importMetaShimPath = join(config.projectRoot, "dist", "import-meta-shim.cjs");
   const shimContent = `
 // Shim for import.meta in CJS/SEA context
@@ -164,7 +165,6 @@ __globalThis__.__import_meta_url__ = __filename ? pathToFileURL(__filename).href
 `;
   writeFileSync(importMetaShimPath, shimContent);
   
-  // Use esbuild for bundling (already installed in project)
   const esbuild = await import("esbuild");
   
   await esbuild.build({
@@ -193,6 +193,7 @@ __globalThis__.__import_meta_url__ = __filename ? pathToFileURL(__filename).href
     sourcemap: false,
     define: {
       "import.meta.url": "__import_meta_url__",
+      "__OPENCLAW_VERSION__": JSON.stringify(pkg.version),
     },
     inject: [importMetaShimPath],
     banner: {
@@ -200,7 +201,6 @@ __globalThis__.__import_meta_url__ = __filename ? pathToFileURL(__filename).href
     },
   });
   
-  // Clean up shim
   rmSync(importMetaShimPath, { force: true });
   
   console.log(`SEA bundle created: ${seaOutputPath}`);
@@ -212,14 +212,22 @@ function createSeaConfig(seaBundlePath) {
   
   const seaConfigPath = join(config.projectRoot, "sea-config.json");
   const blobPath = join(config.projectRoot, "sea-prep.blob");
+  const pkg = getPackageInfo();
+  
+  const seaPkgJsonPath = join(config.projectRoot, "dist", "sea-package.json");
+  const seaPkgJson = {
+    name: pkg.name,
+    version: pkg.version,
+  };
+  writeFileSync(seaPkgJsonPath, JSON.stringify(seaPkgJson, null, 2));
   
   const seaConfig = {
-    main: seaBundlePath,  // Use the single-file bundle as entry
+    main: seaBundlePath,
     output: blobPath,
     disableExperimentalSEAWarning: true,
     useSnapshot: false,
     assets: {
-      // Include control-ui if it exists
+      "dist/sea-package.json": "package.json",
       ...(existsSync(join(config.projectRoot, "dist", "control-ui"))
         ? { "dist/control-ui/**/*": "dist/control-ui" }
         : {}),
@@ -296,8 +304,16 @@ function copyAssets(executablePath) {
   console.log("\n📋 Copying additional assets...");
   
   const outputDir = dirname(executablePath);
+  const pkg = getPackageInfo();
   
-  // Copy control-ui if it exists
+  const seaPkgJsonPath = join(outputDir, "package.json");
+  const seaPkgJson = {
+    name: pkg.name,
+    version: pkg.version,
+  };
+  writeFileSync(seaPkgJsonPath, JSON.stringify(seaPkgJson, null, 2));
+  console.log("Created package.json for SEA runtime");
+  
   const controlUiSrc = join(config.projectRoot, "dist", "control-ui");
   const controlUiDest = join(outputDir, "control-ui");
   
@@ -307,7 +323,6 @@ function copyAssets(executablePath) {
     exec(`cp -r "${controlUiSrc}"/* "${controlUiDest}"/`);
   }
   
-  // Copy README and LICENSE
   const docs = ["README.md", "LICENSE"];
   for (const doc of docs) {
     const docPath = join(config.projectRoot, doc);
@@ -363,9 +378,11 @@ async function main() {
     const seaConfigPath_ = join(config.projectRoot, "sea-config.json");
     const blobPath = join(config.projectRoot, "sea-prep.blob");
     const seaBundleJs = join(config.projectRoot, "dist", "sea-bundle.cjs");
+    const seaPkgJson = join(config.projectRoot, "dist", "sea-package.json");
     if (existsSync(seaConfigPath_)) rmSync(seaConfigPath_);
     if (existsSync(blobPath)) rmSync(blobPath);
     if (existsSync(seaBundleJs)) rmSync(seaBundleJs);
+    if (existsSync(seaPkgJson)) rmSync(seaPkgJson);
     
     console.log("\n✨ Build complete!");
     
