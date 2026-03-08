@@ -81,33 +81,35 @@ jobs:
         if: matrix.platform == 'win32'
         run: |
           cd dist-sea
-          7z a -tzip ${{ steps.executable.outputs.name }}.zip ${{ steps.executable.outputs.name }}
+          mv ${{ steps.executable.outputs.name }} openclaw.exe
+          7z a -tzip openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.zip openclaw.exe
 
       - name: Create archive (Unix)
         if: matrix.platform != 'win32'
         run: |
           cd dist-sea
-          tar -czf ${{ steps.executable.outputs.name }}.tar.gz ${{ steps.executable.outputs.name }}
+          mv ${{ steps.executable.outputs.name }} openclaw
+          tar -czf openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz openclaw
 
       - name: Upload artifact (Windows)
         if: matrix.platform == 'win32'
         uses: actions/upload-artifact@v4
         with:
           name: openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist-sea/${{ steps.executable.outputs.name }}.zip
+          path: dist-sea/openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.zip
 
       - name: Upload artifact (Unix)
         if: matrix.platform != 'win32'
         uses: actions/upload-artifact@v4
         with:
           name: openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist-sea/${{ steps.executable.outputs.name }}.tar.gz
+          path: dist-sea/openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
 
   release:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref_type == 'tag'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.version)
     
     steps:
       - name: Checkout code
