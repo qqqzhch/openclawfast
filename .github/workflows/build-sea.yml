@@ -2,6 +2,8 @@ name: Build SEA Executables
 
 on:
   push:
+    branches:
+      - fast
     tags:
       - 'v*.*.*'
   workflow_dispatch:
