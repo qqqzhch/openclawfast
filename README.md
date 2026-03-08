@@ -102,7 +102,6 @@ chmod +x openclaw
 |----------|-------------|----------|
 | Windows | x64 | `openclaw-VERSION-win32-x64.zip` |
 | macOS | x64 (Intel) | `openclaw-VERSION-darwin-x64.tar.gz` |
-| macOS | arm64 (M1/M2) | `openclaw-VERSION-darwin-arm64.tar.gz` |
 | Linux | x64 | `openclaw-VERSION-linux-x64.tar.gz` |
 | Linux | arm64 | `openclaw-VERSION-linux-arm64.tar.gz` |
 
