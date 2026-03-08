@@ -7,6 +7,7 @@ import {
   resolveSandboxScope,
 } from "../agents/sandbox.js";
 import type { OpenClawConfig } from "../config/config.js";
+import { getInstallRoot } from "../infra/is-sea.js";
 import { runCommandWithTimeout, runExec } from "../process/exec.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { note } from "../terminal/note.js";
@@ -20,12 +21,11 @@ type SandboxScriptInfo = {
 function resolveSandboxScript(scriptRel: string): SandboxScriptInfo | null {
   const candidates = new Set<string>();
   candidates.add(process.cwd());
-  const argv1 = process.argv[1];
-  if (argv1) {
-    const normalized = path.resolve(argv1);
-    candidates.add(path.resolve(path.dirname(normalized), ".."));
-    candidates.add(path.resolve(path.dirname(normalized)));
-  }
+  
+  // Use unified path resolution that works in both SEA and normal modes
+  const installRoot = getInstallRoot();
+  candidates.add(installRoot);
+  candidates.add(path.dirname(installRoot));
 
   for (const root of candidates) {
     const scriptPath = path.join(root, scriptRel);

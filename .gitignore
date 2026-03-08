@@ -121,3 +121,12 @@ dist/protocol.schema.json
 
 # Synthing
 **/.stfolder/
+
+# SEA (Single Executable Application) build artifacts
+dist-sea/
+sea-config.json
+sea-prep.blob
+dist/sea-bundle.cjs
+dist/sea-bundle.js
+sea-bundle.config.mjs
+dist/import-meta-shim.cjs

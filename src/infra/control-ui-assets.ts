@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
+import { isSeaRuntime, getInstallRoot } from "./is-sea.js";
 import { resolveOpenClawPackageRoot, resolveOpenClawPackageRootSync } from "./openclaw-root.js";
 
 const CONTROL_UI_DIST_PATH_SEGMENTS = ["dist", "control-ui", "index.html"] as const;
@@ -153,6 +154,34 @@ export function resolveControlUiRootOverrideSync(rootOverride: string): string |
 }
 
 export function resolveControlUiRootSync(opts: ControlUiRootResolveOptions = {}): string | null {
+  // SEA mode: prioritize executable-relative paths
+  if (isSeaRuntime()) {
+    const installRoot = getInstallRoot();
+    const execDir = path.dirname(process.execPath);
+    
+    // SEA candidates in priority order
+    const seaCandidates = [
+      // 1. Resources bundled alongside executable
+      path.join(execDir, "control-ui"),
+      // 2. Standard dist location relative to install root
+      path.join(installRoot, "dist", "control-ui"),
+      // 3. Resources directory
+      path.join(installRoot, "resources", "control-ui"),
+    ];
+    
+    for (const dir of seaCandidates) {
+      const indexPath = path.join(dir, "index.html");
+      if (fs.existsSync(indexPath)) {
+        return dir;
+      }
+    }
+    
+    // In SEA mode, if control-ui is not found, return null
+    // (don't fall through to development mode paths)
+    return null;
+  }
+  
+  // Normal mode: use traditional path resolution
   const candidates = new Set<string>();
   const argv1 = opts.argv1 ?? process.argv[1];
   const cwd = opts.cwd ?? process.cwd();

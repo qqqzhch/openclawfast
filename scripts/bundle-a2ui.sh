@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Load nvm if available (needed when running from Windows via WSL)
+if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+  source "$HOME/.nvm/nvm.sh"
+elif [[ -s "/usr/local/share/nvm/nvm.sh" ]]; then
+  source "/usr/local/share/nvm/nvm.sh"
+fi
+
 on_error() {
   echo "A2UI bundling failed. Re-run with: pnpm canvas:a2ui:bundle" >&2
   echo "If this persists, verify pnpm deps and try again." >&2

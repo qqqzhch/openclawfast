@@ -7,6 +7,7 @@ import {
   resolveControlUiDistIndexPathForRoot,
 } from "./control-ui-assets.js";
 import { detectPackageManager as detectPackageManagerImpl } from "./detect-package-manager.js";
+import { isSeaRuntime, getInstallRoot } from "./is-sea.js";
 import { readPackageName, readPackageVersion } from "./package-json.js";
 import { normalizePackageTagInput } from "./package-tag.js";
 import { trimLogTail } from "./restart-sentinel.js";
@@ -116,22 +117,40 @@ function resolveNodeModulesBinPackageRoot(argv1: string): string | null {
 
 function buildStartDirs(opts: UpdateRunnerOptions): string[] {
   const dirs: string[] = [];
-  const cwd = normalizeDir(opts.cwd);
-  if (cwd) {
-    dirs.push(cwd);
+  
+  // In SEA mode, use SEA-specific path resolution
+  if (isSeaRuntime()) {
+    const installRoot = getInstallRoot();
+    dirs.push(installRoot);
+    dirs.push(path.dirname(installRoot));
   }
-  const argv1 = normalizeDir(opts.argv1);
-  if (argv1) {
-    dirs.push(path.dirname(argv1));
-    const packageRoot = resolveNodeModulesBinPackageRoot(argv1);
-    if (packageRoot) {
-      dirs.push(packageRoot);
+  
+  // In normal mode or as fallback, use traditional argv1-based resolution
+  if (!isSeaRuntime()) {
+    const cwd = normalizeDir(opts.cwd);
+    if (cwd) {
+      dirs.push(cwd);
+    }
+    const argv1 = normalizeDir(opts.argv1);
+    if (argv1) {
+      dirs.push(path.dirname(argv1));
+      const packageRoot = resolveNodeModulesBinPackageRoot(argv1);
+      if (packageRoot) {
+        dirs.push(packageRoot);
+      }
+    }
+    const proc = normalizeDir(process.cwd());
+    if (proc) {
+      dirs.push(proc);
+    }
+  } else if (opts.cwd) {
+    // In SEA mode, still respect explicit cwd if provided
+    const cwd = normalizeDir(opts.cwd);
+    if (cwd) {
+      dirs.push(cwd);
     }
   }
-  const proc = normalizeDir(process.cwd());
-  if (proc) {
-    dirs.push(proc);
-  }
+  
   return Array.from(new Set(dirs));
 }
 

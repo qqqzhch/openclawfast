@@ -1,0 +1,172 @@
+name: Build SEA Executables
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 1.0.0)'
+        required: false
+
+jobs:
+  build:
+    name: Build SEA - ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - platform: win32
+            arch: x64
+            os: windows-latest
+          - platform: darwin
+            arch: x64
+            os: macos-13
+          - platform: darwin
+            arch: arm64
+            os: macos-14
+          - platform: linux
+            arch: x64
+            os: ubuntu-latest
+          - platform: linux
+            arch: arm64
+            os: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm run build
+
+      - name: Install postject
+        run: npm install -g postject
+
+      - name: Build SEA executable
+        run: node scripts/build-sea.mjs --platform=${{ matrix.platform }} --arch=${{ matrix.arch }} --version
+
+      - name: Get executable name
+        id: executable
+        shell: bash
+        run: |
+          cd dist-sea
+          EXECUTABLE=$(ls openclaw-* | head -n 1)
+          echo "name=$EXECUTABLE" >> $GITHUB_OUTPUT
+          echo "path=dist-sea/$EXECUTABLE" >> $GITHUB_OUTPUT
+
+      - name: Create archive (Windows)
+        if: matrix.platform == 'win32'
+        run: |
+          cd dist-sea
+          7z a -tzip ${{ steps.executable.outputs.name }}.zip ${{ steps.executable.outputs.name }}
+
+      - name: Create archive (Unix)
+        if: matrix.platform != 'win32'
+        run: |
+          cd dist-sea
+          tar -czf ${{ steps.executable.outputs.name }}.tar.gz ${{ steps.executable.outputs.name }}
+
+      - name: Upload artifact (Windows)
+        if: matrix.platform == 'win32'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist-sea/${{ steps.executable.outputs.name }}.zip
+
+      - name: Upload artifact (Unix)
+        if: matrix.platform != 'win32'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-${{ steps.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist-sea/${{ steps.executable.outputs.name }}.tar.gz
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          body: |
+            ## OpenClaw CLI v${{ steps.version.outputs.version }}
+            
+            ### Downloads
+            
+            | Platform | Architecture | Download |
+            |----------|-------------|----------|
+            | Windows | x64 | [openclaw-${{ steps.version.outputs.version }}-win32-x64.zip](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/openclaw-${{ steps.version.outputs.version }}-win32-x64.zip) |
+            | macOS | x64 | [openclaw-${{ steps.version.outputs.version }}-darwin-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/openclaw-${{ steps.version.outputs.version }}-darwin-x64.tar.gz) |
+            | macOS | arm64 | [openclaw-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/openclaw-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz) |
+            | Linux | x64 | [openclaw-${{ steps.version.outputs.version }}-linux-x64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/openclaw-${{ steps.version.outputs.version }}-linux-x64.tar.gz) |
+            | Linux | arm64 | [openclaw-${{ steps.version.outputs.version }}-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/openclaw-${{ steps.version.outputs.version }}-linux-arm64.tar.gz) |
+            
+            ### Installation
+            
+            #### Windows
+            ```powershell
+            # Download and extract
+            Invoke-WebRequest -Uri https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/openclaw-${{ steps.version.outputs.version }}-win32-x64.zip -OutFile openclaw.zip
+            Expand-Archive openclaw.zip -DestinationPath C:\openclaw
+            
+            # Add to PATH (optional)
+            $env:Path += ";C:\openclaw"
+            ```
+            
+            #### macOS / Linux
+            ```bash
+            # Download and extract
+            curl -L https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/openclaw-${{ steps.version.outputs.version }}-$(uname -s)-$(uname -m).tar.gz | tar xz
+            
+            # Move to PATH
+            sudo mv openclaw /usr/local/bin/
+            ```
+            
+            ### Verify Installation
+            ```bash
+            openclaw --version
+            openclaw doctor
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

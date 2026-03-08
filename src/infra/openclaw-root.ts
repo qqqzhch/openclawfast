@@ -2,6 +2,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isSeaRuntime, getInstallRoot } from "./is-sea.js";
 
 const CORE_PACKAGE_NAMES = new Set(["openclaw"]);
 
@@ -82,6 +83,29 @@ function candidateDirsFromArgv1(argv1: string): string[] {
   return candidates;
 }
 
+/**
+ * Get candidate directories for finding OpenClaw package root in SEA mode.
+ * In SEA mode, the executable is standalone, so we look for resources nearby.
+ */
+function candidateDirsForSea(): string[] {
+  const candidates: string[] = [];
+  
+  // In SEA mode, getInstallRoot() returns the directory containing the executable
+  const installRoot = getInstallRoot();
+  candidates.push(installRoot);
+  
+  // Also check parent directory (might have resources bundled alongside)
+  candidates.push(path.dirname(installRoot));
+  
+  // Check for resources directory if it exists
+  const resourcesPath = path.join(installRoot, "resources");
+  if (fsSync.existsSync(resourcesPath)) {
+    candidates.push(resourcesPath);
+  }
+  
+  return candidates;
+}
+
 export async function resolveOpenClawPackageRoot(opts: {
   cwd?: string;
   argv1?: string;
@@ -115,12 +139,23 @@ export function resolveOpenClawPackageRootSync(opts: {
 function buildCandidates(opts: { cwd?: string; argv1?: string; moduleUrl?: string }): string[] {
   const candidates: string[] = [];
 
+  // In SEA mode, prioritize SEA-specific path resolution
+  if (isSeaRuntime()) {
+    candidates.push(...candidateDirsForSea());
+  }
+  
+  // Also check module URL if provided (works in both modes)
   if (opts.moduleUrl) {
     candidates.push(path.dirname(fileURLToPath(opts.moduleUrl)));
   }
-  if (opts.argv1) {
+  
+  // In normal mode, use argv1-based resolution
+  // In SEA mode, this provides a fallback if SEA-specific resolution fails
+  if (opts.argv1 && !isSeaRuntime()) {
     candidates.push(...candidateDirsFromArgv1(opts.argv1));
   }
+  
+  // Always check cwd as a fallback
   if (opts.cwd) {
     candidates.push(opts.cwd);
   }

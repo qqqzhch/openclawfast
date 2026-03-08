@@ -1,3 +1,4 @@
+import { isDevMode } from "../infra/is-sea.js";
 import { resolvePreferredNodePath } from "../daemon/runtime-paths.js";
 import {
   emitNodeRuntimeWarning,
@@ -6,9 +7,8 @@ import {
 import type { GatewayDaemonRuntime } from "./daemon-runtime.js";
 
 export function resolveGatewayDevMode(argv: string[] = process.argv): boolean {
-  const entry = argv[1];
-  const normalizedEntry = entry?.replaceAll("\\", "/");
-  return Boolean(normalizedEntry?.includes("/src/") && normalizedEntry.endsWith(".ts"));
+  // Use unified dev mode detection that works in both SEA and normal modes
+  return isDevMode();
 }
 
 export async function resolveDaemonInstallRuntimeInputs(params: {
